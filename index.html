@@ -31,6 +31,9 @@
             --danger: #ff4757;
             --success: #2ed573;
             --warning: #ffa502;
+            --agent-researcher: #4ecdc4;
+            --agent-critic: #ff6b6b;
+            --agent-manager: #a29bfe;
         }
 
         body {
@@ -279,6 +282,12 @@
             background: rgba(108, 99, 255, 0.15);
             border-color: var(--accent);
             color: var(--accent-light);
+        }
+
+        .toggle-btn.active-deep {
+            background: rgba(255, 107, 107, 0.15);
+            border-color: var(--agent-critic);
+            color: var(--agent-critic);
         }
 
         .toggle-btn:hover {
@@ -718,6 +727,139 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* Deep Think Panel */
+        .deep-think-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 8px;
+            overflow: hidden;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .deep-think-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .deep-think-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .deep-think-status {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .deep-think-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .deep-think-progress {
+            height: 3px;
+            background: var(--bg-tertiary);
+        }
+
+        .deep-think-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--agent-researcher), var(--agent-critic), var(--agent-manager));
+            transition: width 0.5s ease;
+            border-radius: 3px;
+        }
+
+        .deep-think-body {
+            padding: 0 16px 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .deep-think-body.collapsed {
+            max-height: 0;
+            padding: 0 16px;
+            overflow: hidden;
+        }
+
+        .agent-message {
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            line-height: 1.55;
+            animation: agentFadeIn 0.4s ease;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        @keyframes agentFadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .agent-researcher {
+            background: rgba(78, 205, 196, 0.08);
+            border-left: 3px solid var(--agent-researcher);
+        }
+
+        .agent-critic {
+            background: rgba(255, 107, 107, 0.08);
+            border-left: 3px solid var(--agent-critic);
+        }
+
+        .agent-manager {
+            background: rgba(162, 155, 254, 0.08);
+            border-left: 3px solid var(--agent-manager);
+        }
+
+        .agent-tag {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .agent-tag-researcher { color: var(--agent-researcher); }
+        .agent-tag-critic { color: var(--agent-critic); }
+        .agent-tag-manager { color: var(--agent-manager); }
+
+        .agent-text {
+            color: var(--text-secondary);
+        }
+
+        .deep-think-toggle-arrow {
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+
+        .deep-think-toggle-arrow.open {
+            transform: rotate(180deg);
+        }
+
+        .deep-think-done-check {
+            color: var(--success);
+            font-size: 14px;
+        }
+
         /* Mobile */
         @media (max-width: 768px) {
             #sidebar {
@@ -830,6 +972,7 @@
 
             <div class="topbar-toggles">
                 <button class="toggle-btn" id="thinking-toggle">💭 Think</button>
+                <button class="toggle-btn" id="deep-think-toggle">🧠 Deep Think</button>
                 <button class="toggle-btn" id="stream-toggle" data-active="true">⚡ Stream</button>
             </div>
 
@@ -895,6 +1038,7 @@
             systemPrompt: localStorage.getItem("kiv_system_prompt") || "You are a helpful assistant.",
             streaming: true,
             thinking: false,
+            deepThink: false,
             chats: JSON.parse(localStorage.getItem("kiv_chats") || "[]"),
             activeChatId: null,
             isGenerating: false,
@@ -909,6 +1053,7 @@
         const modelSelect = $("model-select");
         const modelBadge = $("model-badge");
         const thinkingToggle = $("thinking-toggle");
+        const deepThinkToggle = $("deep-think-toggle");
         const streamToggle = $("stream-toggle");
         const settingsBtn = $("settings-btn");
         const settingsModal = $("settings-modal");
@@ -965,6 +1110,19 @@
         thinkingToggle.addEventListener("click", () => {
             state.thinking = !state.thinking;
             thinkingToggle.classList.toggle("active", state.thinking);
+            if (state.thinking && state.deepThink) {
+                state.deepThink = false;
+                deepThinkToggle.classList.remove("active-deep");
+            }
+        });
+
+        deepThinkToggle.addEventListener("click", () => {
+            state.deepThink = !state.deepThink;
+            deepThinkToggle.classList.toggle("active-deep", state.deepThink);
+            if (state.deepThink && state.thinking) {
+                state.thinking = false;
+                thinkingToggle.classList.remove("active");
+            }
         });
 
         streamToggle.addEventListener("click", () => {
@@ -1117,20 +1275,12 @@
         }
 
         function formatContent(text) {
-            // Basic code block formatting
             let formatted = escapeHtml(text);
-
-            // Code blocks ```
             formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
                 return `<pre><code>${code.trim()}</code></pre>`;
             });
-
-            // Inline code
             formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            // Bold
             formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
             return formatted;
         }
 
@@ -1159,6 +1309,27 @@
                 let html = '<div class="message-wrapper">';
                 html += `<span class="message-label ${msg.role === "user" ? "user-label" : "bot-label"}">${msg.role === "user" ? "You" : modelInfo[chat.model]?.name || chat.model}</span>`;
 
+                // Deep Think block
+                if (msg.deepThinkLog && msg.deepThinkLog.length > 0) {
+                    html += `<div class="deep-think-panel">`;
+                    html += `<div class="deep-think-header" onclick="this.nextElementSibling.nextElementSibling.classList.toggle('collapsed'); this.querySelector('.deep-think-toggle-arrow').classList.toggle('open')">`;
+                    html += `<div class="deep-think-header-left">`;
+                    html += `<span class="deep-think-done-check">✓</span>`;
+                    html += `<span class="deep-think-status">Deep Think Complete — ${msg.deepThinkLog.length} steps</span>`;
+                    html += `</div>`;
+                    html += `<span class="deep-think-toggle-arrow">▼</span>`;
+                    html += `</div>`;
+                    html += `<div class="deep-think-progress"><div class="deep-think-progress-bar" style="width:100%"></div></div>`;
+                    html += `<div class="deep-think-body collapsed">`;
+                    msg.deepThinkLog.forEach(entry => {
+                        html += `<div class="agent-message agent-${entry.agent}">`;
+                        html += `<div class="agent-tag agent-tag-${entry.agent}">${entry.icon} ${entry.label}</div>`;
+                        html += `<div class="agent-text">${escapeHtml(entry.text)}</div>`;
+                        html += `</div>`;
+                    });
+                    html += `</div></div>`;
+                }
+
                 // Thinking block
                 if (msg.reasoning_content) {
                     html += `
@@ -1186,6 +1357,263 @@
             messageInput.style.height = "auto";
             messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + "px";
         });
+
+        // ============================================================
+        // ===== DEEP THINK: Multi-Agent Pipeline =====
+        // ============================================================
+        // 
+        // Uses 3 "agent instances" (Researcher, Critic, Manager) that are
+        // actually separate API calls with different system prompts, all
+        // using the same model. We reuse instances by keeping track and
+        // limiting to at most 4 API calls total (researcher, critic,
+        // researcher-revision, manager) with delays to stay under rate limits.
+        //
+        // Rate limit: 30 msgs/min, 5 burst. We send max 4 calls with
+        // 1.5s delays between them → safe.
+        // ============================================================
+
+        async function callAgent(systemPrompt, messages, model, signal) {
+            const body = {
+                model: model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...messages
+                ],
+                stream: false
+            };
+
+            const response = await fetch(`${state.endpoint}/chat/completions`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${state.apiKey}`
+                },
+                body: JSON.stringify(body),
+                signal: signal
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || err.error || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function createDeepThinkUI() {
+            const panel = document.createElement("div");
+            panel.className = "message bot-msg";
+            panel.style.maxWidth = "90%";
+            panel.innerHTML = `
+                <div class="message-wrapper">
+                    <span class="message-label bot-label">🧠 DEEP THINK</span>
+                    <div class="deep-think-panel" id="live-deep-think">
+                        <div class="deep-think-header">
+                            <div class="deep-think-header-left">
+                                <div class="deep-think-spinner"></div>
+                                <span class="deep-think-status" id="dt-status">Initializing agents...</span>
+                            </div>
+                        </div>
+                        <div class="deep-think-progress">
+                            <div class="deep-think-progress-bar" id="dt-progress" style="width:5%"></div>
+                        </div>
+                        <div class="deep-think-body" id="dt-body"></div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(panel);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return panel;
+        }
+
+        function addAgentEntry(containerId, agent, icon, label, text) {
+            const body = document.getElementById(containerId);
+            if (!body) return;
+            const div = document.createElement("div");
+            div.className = `agent-message agent-${agent}`;
+            div.innerHTML = `
+                <div class="agent-tag agent-tag-${agent}">${icon} ${label}</div>
+                <div class="agent-text">${escapeHtml(text)}</div>
+            `;
+            body.appendChild(div);
+            const chat = document.getElementById("chat-container");
+            if (chat) chat.scrollTop = chat.scrollHeight;
+        }
+
+        function updateDTStatus(text) {
+            const el = document.getElementById("dt-status");
+            if (el) el.textContent = text;
+        }
+
+        function updateDTProgress(pct) {
+            const el = document.getElementById("dt-progress");
+            if (el) el.style.width = pct + "%";
+        }
+
+        async function deepThinkPipeline(chat, userMessage) {
+            const model = chat.model;
+            state.abortController = new AbortController();
+            const signal = state.abortController.signal;
+
+            const dtPanel = createDeepThinkUI();
+            const deepThinkLog = [];
+
+            const conversationContext = chat.messages
+                .filter(m => m.role !== "system")
+                .slice(-6)
+                .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+                .join("\n\n");
+
+            try {
+                // ===== STEP 1: Researcher =====
+                updateDTStatus("🔍 Researcher is analyzing...");
+                updateDTProgress(15);
+
+                const researcherPrompt = `You are Agent-R (The Researcher). Your job is to deeply analyze the user's question, break it down, gather your thoughts, consider multiple angles, and produce a thorough DRAFT response. Be detailed and comprehensive. Include any relevant context, examples, edge cases, and nuances. Do NOT hold back — give the fullest answer you can as a draft.
+
+Previous conversation for context:
+${conversationContext}`;
+
+                const researcherResult = await callAgent(
+                    researcherPrompt,
+                    [{ role: "user", content: userMessage }],
+                    model,
+                    signal
+                );
+
+                const researcherEntry = { agent: "researcher", icon: "🔍", label: "Agent-R (Researcher)", text: researcherResult };
+                deepThinkLog.push(researcherEntry);
+                addAgentEntry("dt-body", "researcher", "🔍", "Agent-R (Researcher)", researcherResult);
+
+                await delay(1500);
+
+                // ===== STEP 2: Critic =====
+                updateDTStatus("🔴 Critic is reviewing...");
+                updateDTProgress(40);
+
+                const criticPrompt = `You are Agent-C (The Critic/Skeptic). You receive a DRAFT response from Agent-R and your job is to:
+1. Identify any factual errors, logical gaps, missing information, or weak arguments
+2. Point out where the response could be clearer or more precise  
+3. Suggest specific improvements with concrete recommendations
+4. Rate the draft quality (Poor / Acceptable / Good / Excellent)
+5. If the draft is already Excellent, say so — don't nitpick for the sake of it
+
+Be direct and constructive. Your critique will be used to improve the final answer.`;
+
+                const criticResult = await callAgent(
+                    criticPrompt,
+                    [
+                        { role: "user", content: `Original question: "${userMessage}"\n\nAgent-R's Draft:\n${researcherResult}` }
+                    ],
+                    model,
+                    signal
+                );
+
+                const criticEntry = { agent: "critic", icon: "🔴", label: "Agent-C (Critic)", text: criticResult };
+                deepThinkLog.push(criticEntry);
+                addAgentEntry("dt-body", "critic", "🔴", "Agent-C (Critic)", criticResult);
+
+                await delay(1500);
+
+                // ===== STEP 3: Researcher Revision (same "instance" — reuses researcher role) =====
+                updateDTStatus("🔍 Researcher revising based on critique...");
+                updateDTProgress(65);
+
+                const revisionPrompt = `You are Agent-R (The Researcher) again. You previously wrote a draft, and Agent-C (The Critic) has reviewed it. Now incorporate the feedback to produce an IMPROVED, REVISED draft. Fix any issues raised, fill gaps, and strengthen weak areas. If the critic said it was already excellent, just polish it slightly.`;
+
+                const revisionResult = await callAgent(
+                    revisionPrompt,
+                    [
+                        { role: "user", content: `Original question: "${userMessage}"\n\nYour original draft:\n${researcherResult}\n\nAgent-C's critique:\n${criticResult}\n\nPlease produce your revised draft now.` }
+                    ],
+                    model,
+                    signal
+                );
+
+                const revisionEntry = { agent: "researcher", icon: "🔍", label: "Agent-R (Revision)", text: revisionResult };
+                deepThinkLog.push(revisionEntry);
+                addAgentEntry("dt-body", "researcher", "🔍", "Agent-R (Revision)", revisionResult);
+
+                await delay(1500);
+
+                // ===== STEP 4: Manager — Final Polish =====
+                updateDTStatus("🟣 Manager polishing final response...");
+                updateDTProgress(85);
+
+                const managerPrompt = `You are Agent-M (The Manager). You receive a revised draft that has already been through research and peer review. Your job is to:
+1. Take the revised draft and produce the FINAL, polished response
+2. Ensure it directly answers the user's question clearly
+3. Fix any formatting, tone, or flow issues
+4. Remove any meta-commentary about the review process — the user should receive a clean, direct answer
+5. Keep the depth and quality from the research, but make it feel natural and well-written
+
+Output ONLY the final answer. No preamble about agents or review. Just the best possible response to the user.`;
+
+                const managerResult = await callAgent(
+                    managerPrompt,
+                    [
+                        { role: "user", content: `Original question: "${userMessage}"\n\nRevised draft (post-critique):\n${revisionResult}\n\nProduce the final polished answer now.` }
+                    ],
+                    model,
+                    signal
+                );
+
+                const managerEntry = { agent: "manager", icon: "🟣", label: "Agent-M (Manager)", text: "Final response polished and delivered." };
+                deepThinkLog.push(managerEntry);
+                addAgentEntry("dt-body", "manager", "🟣", "Agent-M (Manager)", "Final response polished and delivered ✓");
+
+                updateDTProgress(100);
+                updateDTStatus("✓ Deep Think Complete");
+
+                // Replace spinner with checkmark
+                const spinner = dtPanel.querySelector(".deep-think-spinner");
+                if (spinner) {
+                    spinner.outerHTML = `<span class="deep-think-done-check">✓</span>`;
+                }
+
+                // Add toggle arrow
+                const header = dtPanel.querySelector(".deep-think-header");
+                if (header && !header.querySelector(".deep-think-toggle-arrow")) {
+                    const arrow = document.createElement("span");
+                    arrow.className = "deep-think-toggle-arrow open";
+                    arrow.textContent = "▼";
+                    header.appendChild(arrow);
+                    header.style.cursor = "pointer";
+                    header.addEventListener("click", () => {
+                        const body = dtPanel.querySelector(".deep-think-body");
+                        if (body) body.classList.toggle("collapsed");
+                        arrow.classList.toggle("open");
+                    });
+                }
+
+                // Remove the live panel from DOM - it'll be re-rendered via renderMessages
+                dtPanel.remove();
+
+                // Save the final response
+                const msg = {
+                    role: "assistant",
+                    content: managerResult,
+                    deepThinkLog: deepThinkLog
+                };
+                chat.messages.push(msg);
+                saveChats();
+                renderMessages();
+
+            } catch (error) {
+                dtPanel.remove();
+                if (error.name !== "AbortError") {
+                    chat.messages.push({ role: "assistant", content: `❌ Deep Think Error: ${error.message}` });
+                    saveChats();
+                    renderMessages();
+                }
+                throw error;
+            }
+        }
 
         // ===== Send Message =====
         async function sendMessage() {
@@ -1220,38 +1648,40 @@
             sendBtn.disabled = true;
             statusText.textContent = "Generating...";
 
-            // Show typing indicator
-            const typingDiv = document.createElement("div");
-            typingDiv.className = "message bot-msg";
-            typingDiv.innerHTML = `
-                <div class="message-wrapper">
-                    <span class="message-label bot-label">${modelInfo[chat.model]?.name || chat.model}</span>
-                    <div class="typing-indicator">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                    </div>
-                </div>
-            `;
-            chatContainer.appendChild(typingDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            // Prepare messages (with prompt caching - send full history)
-            const apiMessages = chat.messages.filter(m => m.role !== "assistant" || !m.reasoning_content ? true : true)
-                .map(m => ({ role: m.role, content: m.content }));
-
             try {
-                if (state.streaming) {
-                    await streamResponse(chat, apiMessages, typingDiv);
+                if (state.deepThink) {
+                    // ===== Deep Think Mode =====
+                    statusText.textContent = "🧠 Deep Thinking...";
+                    await deepThinkPipeline(chat, text);
                 } else {
-                    await nonStreamResponse(chat, apiMessages, typingDiv);
+                    // ===== Normal Mode =====
+                    // Show typing indicator
+                    const typingDiv = document.createElement("div");
+                    typingDiv.className = "message bot-msg";
+                    typingDiv.innerHTML = `
+                        <div class="message-wrapper">
+                            <span class="message-label bot-label">${modelInfo[chat.model]?.name || chat.model}</span>
+                            <div class="typing-indicator">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                        </div>
+                    `;
+                    chatContainer.appendChild(typingDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                    const apiMessages = chat.messages.map(m => ({ role: m.role, content: m.content }));
+
+                    if (state.streaming) {
+                        await streamResponse(chat, apiMessages, typingDiv);
+                    } else {
+                        await nonStreamResponse(chat, apiMessages, typingDiv);
+                    }
                 }
             } catch (error) {
-                typingDiv.remove();
                 if (error.name !== "AbortError") {
-                    chat.messages.push({ role: "assistant", content: `❌ Error: ${error.message}` });
-                    saveChats();
-                    renderMessages();
+                    // Error already handled in sub-functions
                 }
             }
 
@@ -1335,7 +1765,6 @@
 
             typingDiv.remove();
 
-            // Create streaming message element
             const streamDiv = document.createElement("div");
             streamDiv.className = "message bot-msg";
             streamDiv.innerHTML = `
@@ -1388,17 +1817,14 @@
                 }
             }
 
-            // Remove streaming cursor
             bubble.classList.remove("streaming-cursor");
             bubble.innerHTML = formatContent(fullContent);
 
-            // Save to chat
             const msg = { role: "assistant", content: fullContent };
             if (reasoningContent) msg.reasoning_content = reasoningContent;
             chat.messages.push(msg);
             saveChats();
 
-            // Re-render to show thinking block if present
             if (reasoningContent) renderMessages();
         }
 
