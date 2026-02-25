@@ -45,7 +45,6 @@
             overflow: hidden;
         }
 
-        /* Sidebar */
         #sidebar {
             width: 280px;
             background: var(--bg-secondary);
@@ -183,7 +182,6 @@
             color: var(--danger);
         }
 
-        /* Main Area */
         #main {
             flex: 1;
             display: flex;
@@ -191,7 +189,6 @@
             min-width: 0;
         }
 
-        /* Top Bar */
         #topbar {
             display: flex;
             align-items: center;
@@ -310,7 +307,7 @@
             color: var(--accent-light);
         }
 
-        /* Chat Area */
+        /* FIX: removed scroll-behavior: smooth so programmatic scrolls are instant */
         #chat-container {
             flex: 1;
             overflow-y: auto;
@@ -318,7 +315,7 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-            scroll-behavior: smooth;
+            /* no scroll-behavior here — we control it manually */
         }
 
         #chat-container::-webkit-scrollbar {
@@ -435,7 +432,6 @@
             margin-top: 2px;
         }
 
-        /* Streaming cursor */
         .streaming-cursor::after {
             content: '▋';
             animation: blink 1s infinite;
@@ -447,7 +443,6 @@
             50% { opacity: 0; }
         }
 
-        /* Typing indicator */
         .typing-indicator {
             display: flex;
             gap: 5px;
@@ -470,7 +465,6 @@
             30% { transform: translateY(-8px); }
         }
 
-        /* Empty State */
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -499,7 +493,6 @@
             line-height: 1.5;
         }
 
-        /* Input Area */
         #input-area {
             padding: 12px 16px 16px;
             background: var(--bg-secondary);
@@ -561,11 +554,13 @@
             box-shadow: 0 0 20px var(--accent-glow);
         }
 
-        #send-btn:disabled {
-            background: var(--bg-hover);
-            color: var(--text-muted);
-            cursor: not-allowed;
-            box-shadow: none;
+        #send-btn.stop-btn {
+            background: var(--danger);
+        }
+
+        #send-btn.stop-btn:hover {
+            background: #ff6b81;
+            box-shadow: 0 0 20px rgba(255,71,87,0.3);
         }
 
         .input-info {
@@ -576,7 +571,6 @@
             color: var(--text-muted);
         }
 
-        /* Settings Modal */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -704,7 +698,6 @@
             background: var(--accent-light);
         }
 
-        /* Toast */
         .toast {
             position: fixed;
             bottom: 100px;
@@ -727,7 +720,6 @@
             transform: translateX(-50%) translateY(0);
         }
 
-        /* Deep Think Panel */
         .deep-think-panel {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -860,7 +852,6 @@
             font-size: 14px;
         }
 
-        /* Mobile */
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed;
@@ -904,7 +895,6 @@
             }
         }
 
-        /* Code blocks */
         code {
             background: var(--bg-tertiary);
             padding: 2px 6px;
@@ -934,7 +924,6 @@
 
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-    <!-- Sidebar -->
     <aside id="sidebar">
         <div class="sidebar-header">
             <h2>💬 Chats</h2>
@@ -946,7 +935,6 @@
         </div>
     </aside>
 
-    <!-- Main -->
     <main id="main">
         <div id="topbar">
             <button id="menu-btn">☰</button>
@@ -1000,7 +988,6 @@
         </div>
     </main>
 
-    <!-- Settings Modal -->
     <div class="modal-overlay" id="settings-modal">
         <div class="modal">
             <div class="modal-header">
@@ -1016,7 +1003,7 @@
                 <div class="form-group">
                     <label>System Prompt</label>
                     <textarea id="system-prompt-input" placeholder="You are a helpful assistant...">You are a helpful assistant.</textarea>
-                    <p class="hint">Custom instructions the AI will follow. Applied to new chats.</p>
+                    <p class="hint">Custom instructions the AI will follow. Updates the current chat immediately.</p>
                 </div>
                 <div class="form-group">
                     <label>API Endpoint</label>
@@ -1028,7 +1015,6 @@
         </div>
     </div>
 
-    <!-- Toast -->
     <div class="toast" id="toast"></div>
 
     <script>
@@ -1086,6 +1072,18 @@
             "qwen-plus-2025-07-28": { name: "Qwen Plus", tier: "standard", provider: "Qwen" },
             "claude-opus-4.5": { name: "Opus 4.5", tier: "premium", provider: "Anthropic" }
         };
+
+        // ===== Scroll Helpers (FIX: no more forced scroll during streaming) =====
+        function isUserNearBottom() {
+            const threshold = 150;
+            return chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < threshold;
+        }
+
+        function scrollToBottom(force) {
+            if (force || isUserNearBottom()) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
 
         // ===== Toast =====
         function showToast(msg) {
@@ -1149,6 +1147,7 @@
             if (e.target === settingsModal) closeModal();
         });
 
+        // FIX: saving settings now also updates the active chat's system prompt
         saveSettingsBtn.addEventListener("click", () => {
             state.apiKey = apiKeyInput.value.trim();
             state.systemPrompt = systemPromptInput.value.trim() || "You are a helpful assistant.";
@@ -1158,8 +1157,20 @@
             localStorage.setItem("kiv_system_prompt", state.systemPrompt);
             localStorage.setItem("kiv_endpoint", state.endpoint);
 
+            // FIX: update the active chat's system message immediately
+            const chat = getActiveChat();
+            if (chat) {
+                const sysIdx = chat.messages.findIndex(m => m.role === "system");
+                if (sysIdx !== -1) {
+                    chat.messages[sysIdx].content = state.systemPrompt;
+                } else {
+                    chat.messages.unshift({ role: "system", content: state.systemPrompt });
+                }
+                saveChats();
+            }
+
             closeModal();
-            showToast("✅ Settings saved!");
+            showToast("✅ Settings saved & applied to current chat!");
         });
 
         // ===== Sidebar =====
@@ -1240,6 +1251,10 @@
                         deleteChat(e.target.dataset.id);
                         return;
                     }
+                    if (state.isGenerating) {
+                        showToast("⚠️ Wait for generation to finish or stop it first");
+                        return;
+                    }
                     state.activeChatId = chat.id;
                     modelSelect.value = chat.model;
                     updateModelBadge();
@@ -1253,6 +1268,10 @@
         }
 
         function deleteChat(id) {
+            if (state.isGenerating && state.activeChatId === id) {
+                showToast("⚠️ Stop generation before deleting this chat");
+                return;
+            }
             state.chats = state.chats.filter(c => c.id !== id);
             if (state.activeChatId === id) {
                 state.activeChatId = state.chats[0]?.id || null;
@@ -1311,7 +1330,6 @@
                 let html = '<div class="message-wrapper">';
                 html += `<span class="message-label ${msg.role === "user" ? "user-label" : "bot-label"}">${msg.role === "user" ? "You" : modelInfo[chat.model]?.name || chat.model}</span>`;
 
-                // Deep Think block
                 if (msg.deepThinkLog && msg.deepThinkLog.length > 0) {
                     html += `<div class="deep-think-panel">`;
                     html += `<div class="deep-think-header" onclick="this.nextElementSibling.nextElementSibling.classList.toggle('collapsed'); this.querySelector('.deep-think-toggle-arrow').classList.toggle('open')">`;
@@ -1332,7 +1350,6 @@
                     html += `</div></div>`;
                 }
 
-                // Thinking block
                 if (msg.reasoning_content) {
                     html += `
                         <div class="thinking-block">
@@ -1351,7 +1368,7 @@
                 chatContainer.appendChild(wrapper);
             });
 
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            scrollToBottom(true);
         }
 
         // ===== Auto-resize textarea =====
@@ -1360,18 +1377,20 @@
             messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + "px";
         });
 
+        // ===== Helper: set button state =====
+        function setGenerating(active) {
+            state.isGenerating = active;
+            if (active) {
+                sendBtn.textContent = "■";
+                sendBtn.classList.add("stop-btn");
+            } else {
+                sendBtn.textContent = "↑";
+                sendBtn.classList.remove("stop-btn");
+            }
+        }
+
         // ============================================================
         // ===== DEEP THINK: Multi-Agent Pipeline =====
-        // ============================================================
-        // 
-        // Uses 3 "agent instances" (Researcher, Critic, Manager) that are
-        // actually separate API calls with different system prompts, all
-        // using the same model. We reuse instances by keeping track and
-        // limiting to at most 4 API calls total (researcher, critic,
-        // researcher-revision, manager) with delays to stay under rate limits.
-        //
-        // Rate limit: 30 msgs/min, 5 burst. We send max 4 calls with
-        // 1.5s delays between them → safe.
         // ============================================================
 
         async function callAgent(systemPrompt, messages, model, signal) {
@@ -1429,7 +1448,7 @@
                 </div>
             `;
             chatContainer.appendChild(panel);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            scrollToBottom(false); // FIX: conditional scroll
             return panel;
         }
 
@@ -1443,8 +1462,7 @@
                 <div class="agent-text">${escapeHtml(text)}</div>
             `;
             body.appendChild(div);
-            const chat = document.getElementById("chat-container");
-            if (chat) chat.scrollTop = chat.scrollHeight;
+            scrollToBottom(false); // FIX: conditional scroll
         }
 
         function updateDTStatus(text) {
@@ -1465,6 +1483,9 @@
             const dtPanel = createDeepThinkUI();
             const deepThinkLog = [];
 
+            // FIX: include the user's system prompt so deep think respects it
+            const userSystemPrompt = state.systemPrompt;
+
             const conversationContext = chat.messages
                 .filter(m => m.role !== "system")
                 .slice(-6)
@@ -1477,6 +1498,11 @@
                 updateDTProgress(15);
 
                 const researcherPrompt = `You are Agent-R (The Researcher). Your job is to deeply analyze the user's question, break it down, gather your thoughts, consider multiple angles, and produce a thorough DRAFT response. Be detailed and comprehensive. Include any relevant context, examples, edge cases, and nuances. Do NOT hold back — give the fullest answer you can as a draft.
+
+IMPORTANT — The user has set the following system-level instructions that you MUST follow:
+"""
+${userSystemPrompt}
+"""
 
 Previous conversation for context:
 ${conversationContext}`;
@@ -1505,6 +1531,11 @@ ${conversationContext}`;
 4. Rate the draft quality (Poor / Acceptable / Good / Excellent)
 5. If the draft is already Excellent, say so — don't nitpick for the sake of it
 
+Also verify the draft follows these user instructions:
+"""
+${userSystemPrompt}
+"""
+
 Be direct and constructive. Your critique will be used to improve the final answer.`;
 
                 const criticResult = await callAgent(
@@ -1522,11 +1553,16 @@ Be direct and constructive. Your critique will be used to improve the final answ
 
                 await delay(1500);
 
-                // ===== STEP 3: Researcher Revision (same "instance" — reuses researcher role) =====
+                // ===== STEP 3: Researcher Revision =====
                 updateDTStatus("🔍 Researcher revising based on critique...");
                 updateDTProgress(65);
 
-                const revisionPrompt = `You are Agent-R (The Researcher) again. You previously wrote a draft, and Agent-C (The Critic) has reviewed it. Now incorporate the feedback to produce an IMPROVED, REVISED draft. Fix any issues raised, fill gaps, and strengthen weak areas. If the critic said it was already excellent, just polish it slightly.`;
+                const revisionPrompt = `You are Agent-R (The Researcher) again. You previously wrote a draft, and Agent-C (The Critic) has reviewed it. Now incorporate the feedback to produce an IMPROVED, REVISED draft. Fix any issues raised, fill gaps, and strengthen weak areas. If the critic said it was already excellent, just polish it slightly.
+
+Remember to follow the user's system instructions:
+"""
+${userSystemPrompt}
+"""`;
 
                 const revisionResult = await callAgent(
                     revisionPrompt,
@@ -1554,6 +1590,11 @@ Be direct and constructive. Your critique will be used to improve the final answ
 4. Remove any meta-commentary about the review process — the user should receive a clean, direct answer
 5. Keep the depth and quality from the research, but make it feel natural and well-written
 
+You MUST follow these user-level instructions in your final output:
+"""
+${userSystemPrompt}
+"""
+
 Output ONLY the final answer. No preamble about agents or review. Just the best possible response to the user.`;
 
                 const managerResult = await callAgent(
@@ -1572,13 +1613,11 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
                 updateDTProgress(100);
                 updateDTStatus("✓ Deep Think Complete");
 
-                // Replace spinner with checkmark
                 const spinner = dtPanel.querySelector(".deep-think-spinner");
                 if (spinner) {
                     spinner.outerHTML = `<span class="deep-think-done-check">✓</span>`;
                 }
 
-                // Add toggle arrow
                 const header = dtPanel.querySelector(".deep-think-header");
                 if (header && !header.querySelector(".deep-think-toggle-arrow")) {
                     const arrow = document.createElement("span");
@@ -1593,10 +1632,8 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
                     });
                 }
 
-                // Remove the live panel from DOM - it'll be re-rendered via renderMessages
                 dtPanel.remove();
 
-                // Save the final response
                 const msg = {
                     role: "assistant",
                     content: managerResult,
@@ -1608,12 +1645,7 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
 
             } catch (error) {
                 dtPanel.remove();
-                if (error.name !== "AbortError") {
-                    chat.messages.push({ role: "assistant", content: `❌ Deep Think Error: ${error.message}` });
-                    saveChats();
-                    renderMessages();
-                }
-                throw error;
+                throw error; // let sendMessage handle it
             }
         }
 
@@ -1628,16 +1660,21 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
                 return;
             }
 
-            // Get or create chat
             let chat = getActiveChat();
             if (!chat) {
                 chat = createNewChat();
             }
 
-            // Update model
             chat.model = modelSelect.value;
 
-            // Add user message
+            // FIX: always sync the system prompt before sending
+            const sysIdx = chat.messages.findIndex(m => m.role === "system");
+            if (sysIdx !== -1) {
+                chat.messages[sysIdx].content = state.systemPrompt;
+            } else {
+                chat.messages.unshift({ role: "system", content: state.systemPrompt });
+            }
+
             chat.messages.push({ role: "user", content: text });
             updateChatTitle(chat);
             saveChats();
@@ -1646,19 +1683,18 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
 
             messageInput.value = "";
             messageInput.style.height = "auto";
-            state.isGenerating = true;
-            sendBtn.disabled = true;
+            setGenerating(true);
             statusText.textContent = "Generating...";
+
+            let typingDiv = null;
 
             try {
                 if (state.deepThink) {
-                    // ===== Deep Think Mode =====
                     statusText.textContent = "🧠 Deep Thinking...";
                     await deepThinkPipeline(chat, text);
                 } else {
-                    // ===== Normal Mode =====
                     // Show typing indicator
-                    const typingDiv = document.createElement("div");
+                    typingDiv = document.createElement("div");
                     typingDiv.className = "message bot-msg";
                     typingDiv.innerHTML = `
                         <div class="message-wrapper">
@@ -1671,7 +1707,7 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
                         </div>
                     `;
                     chatContainer.appendChild(typingDiv);
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    scrollToBottom(true);
 
                     const apiMessages = chat.messages.map(m => ({ role: m.role, content: m.content }));
 
@@ -1680,17 +1716,27 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
                     } else {
                         await nonStreamResponse(chat, apiMessages, typingDiv);
                     }
+                    typingDiv = null; // successfully consumed
                 }
             } catch (error) {
-                if (error.name !== "AbortError") {
-                    // Error already handled in sub-functions
-                }
-            }
+                // Clean up typing indicator if it's still in the DOM
+                if (typingDiv && typingDiv.parentNode) typingDiv.remove();
 
-            state.isGenerating = false;
-            sendBtn.disabled = false;
-            statusText.textContent = "Ready";
-            state.abortController = null;
+                if (error.name === "AbortError") {
+                    // User stopped — just re-render to clean up any orphaned UI
+                    renderMessages();
+                } else {
+                    // Real error — show it as a message
+                    chat.messages.push({ role: "assistant", content: `❌ Error: ${error.message}` });
+                    saveChats();
+                    renderMessages();
+                    showToast("❌ " + error.message);
+                }
+            } finally {
+                setGenerating(false);
+                statusText.textContent = "Ready";
+                state.abortController = null;
+            }
         }
 
         // ===== Non-Streaming =====
@@ -1785,58 +1831,90 @@ Output ONLY the final answer. No preamble about agents or review. Just the best 
             const decoder = new TextDecoder();
             let buffer = "";
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() || "";
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
 
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith("data: ")) continue;
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith("data: ")) continue;
 
-                    const data = trimmed.slice(6);
-                    if (data === "[DONE]") continue;
+                        const data = trimmed.slice(6);
+                        if (data === "[DONE]") continue;
 
-                    try {
-                        const parsed = JSON.parse(data);
-                        const delta = parsed.choices?.[0]?.delta;
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
 
-                        if (delta?.reasoning_content) {
-                            reasoningContent += delta.reasoning_content;
+                            if (delta?.reasoning_content) {
+                                reasoningContent += delta.reasoning_content;
+                            }
+
+                            if (delta?.content) {
+                                fullContent += delta.content;
+                                bubble.innerHTML = formatContent(fullContent);
+                                scrollToBottom(false); // FIX: only scroll if user is near bottom
+                            }
+                        } catch (e) {
+                            // Skip parse errors for individual chunks
                         }
-
-                        if (delta?.content) {
-                            fullContent += delta.content;
-                            bubble.innerHTML = formatContent(fullContent);
-                            chatContainer.scrollTop = chatContainer.scrollHeight;
-                        }
-                    } catch (e) {
-                        // Skip parse errors
                     }
                 }
+
+                // FIX: flush the decoder and process any remaining data in the buffer
+                buffer += decoder.decode(); // flush
+                if (buffer.trim()) {
+                    const remainingLines = buffer.split("\n");
+                    for (const line of remainingLines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+                        const data = trimmed.slice(6);
+                        if (data === "[DONE]") continue;
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (delta?.reasoning_content) reasoningContent += delta.reasoning_content;
+                            if (delta?.content) fullContent += delta.content;
+                        } catch (e) {}
+                    }
+                }
+
+            } catch (error) {
+                // FIX: clean up the streaming div on error
+                if (streamDiv.parentNode) streamDiv.remove();
+
+                // If we got partial content before the error, save it
+                if (fullContent && error.name === "AbortError") {
+                    const msg = { role: "assistant", content: fullContent };
+                    if (reasoningContent) msg.reasoning_content = reasoningContent;
+                    chat.messages.push(msg);
+                    saveChats();
+                }
+                throw error;
             }
 
             bubble.classList.remove("streaming-cursor");
             bubble.innerHTML = formatContent(fullContent);
 
+            // Remove the live streaming div — it'll be re-created by renderMessages
+            streamDiv.remove();
+
             const msg = { role: "assistant", content: fullContent };
             if (reasoningContent) msg.reasoning_content = reasoningContent;
             chat.messages.push(msg);
             saveChats();
-
-            if (reasoningContent) renderMessages();
+            renderMessages();
         }
 
         // ===== Stop Generation =====
         function stopGeneration() {
             if (state.abortController) {
                 state.abortController.abort();
-                state.isGenerating = false;
-                sendBtn.disabled = false;
-                statusText.textContent = "Stopped";
                 showToast("⏹ Generation stopped");
             }
         }
